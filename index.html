@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hantavirus Epidemiology Storytelling Map (Draft v18)</title>
+<title>Hantavirus Epidemiology Storytelling Map (Draft v19)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1072,7 +1072,7 @@ body.printing #mapwrap{flex:none;width:990px;height:586px}
 </div>
 <div class="printinfo" id="printinfo"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<div class="vstamp" id="vstamp">Version 18 · Created 26 Sep 2026, 1:50 PM ET</div>
+<div class="vstamp" id="vstamp">Version 19 · Created 26 Sep 2026, 2:02 PM ET</div>
 <script>/* @preserve
  * Leaflet 1.9.4, a JS library for interactive maps. https://leafletjs.com
  * (c) 2010-2023 Vladimir Agafonkin, (c) 2010-2011 CloudMade
@@ -1674,16 +1674,32 @@ function printInfo(){
   const on=[...document.querySelectorAll('#p-layers input:checked')].map(i=>L_(i.dataset.l).label).join(', ');
   document.getElementById('printinfo').innerHTML=`<span><b>Story date:</b> ${fmt(curD)} 2026 · <b>${cum(CASES,curD)}</b> cases numbered · <b>${cum(DEATHS,curD)}</b> deaths · 173 aboard at departure · 23 nationalities<br><b>Layers shown:</b> ${esc(on)}</span><span>Draft prototype. Counts from the source KMZ; not an official case count.<br>${esc(document.getElementById('vstamp').textContent)} · Printed ${new Date().toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</span>`;
 }
+function endPrint(){ document.body.classList.remove('printing'); map.invalidateSize(); }
 function doPrint(){
   showMap(); printInfo(); document.body.classList.add('printing');
   const c=map.getCenter(), z=map.getZoom(); map.invalidateSize(); map.setView(c,z,{animate:false});
-  let done=false; const go=()=>{ if(done) return; done=true; setTimeout(()=>window.print(),150); };
+  let done=false; const go=()=>{ if(done) return; done=true;
+    setTimeout(()=>{ try{ window.print(); }catch(e){} endPrint(); },150); };
   const base = curBase==='imagery' ? BASE.imagery.getLayers()[0] : BASE[curBase];
   base.once('load',go); setTimeout(go,2500);
 }
-addEventListener('beforeprint',()=>{ printInfo(); if(!document.body.classList.contains('printing')){ document.body.classList.add('printing'); map.invalidateSize(); } });
-addEventListener('afterprint',()=>{ document.body.classList.remove('printing'); map.invalidateSize(); });
-document.getElementById('printbtn').onclick = doPrint;
+/* Inside an embed (such as Google Sites) browsers block the print window,
+   so open the map in its own tab with the same view and print there. */
+const EMBEDDED = (()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
+function printURL(){
+  const u=new URL(location.href), c=map.getCenter();
+  u.searchParams.set('print','1'); u.searchParams.set('d',curD); u.searchParams.set('c',c.lat.toFixed(4)+','+c.lng.toFixed(4));
+  u.searchParams.set('z',map.getZoom()); u.searchParams.set('b',curBase);
+  u.searchParams.set('l',Object.keys(GROUP).filter(k=>map.hasLayer(GROUP[k])).join('.'));
+  return u.toString();
+}
+document.getElementById('printbtn').onclick = ()=>{
+  if(!EMBEDDED) return doPrint();
+  const u=printURL(), w=window.open(u,'_blank');
+  if(w) toast('Opening the map in a new tab to print…');
+  else toast('Your browser blocked the new tab. Open the map on its own page to print.');
+};
+addEventListener('afterprint',endPrint);
 
 /* ---- Google Maps: open or copy a link to the selected place or the current view ---- */
 let gmSel=null;
@@ -1733,7 +1749,17 @@ GM.addTo(map);
   sm.onclick=()=>{ const m=sc.classList.toggle('min'); sm.innerHTML=m?'&#9660; Show timeline':'&#9650; Hide timeline'; sm.setAttribute('aria-expanded', String(!m)); };
 })();
 markEmbeds(document.getElementById('p-resources')); markEmbeds(document.getElementById('p-ship')); markEmbeds(document.getElementById('p-videos'));
-applyDate(0); fitAll();
+(function(){
+  const q=new URLSearchParams(location.search);
+  if(q.get('print')!=='1'){ applyDate(0); fitAll(); return; }
+  const layers=(q.get('l')||'').split('.').filter(Boolean);
+  if(layers.length){ Object.keys(GROUP).forEach(k=>{ const on=layers.includes(k); if(on&&!map.hasLayer(GROUP[k])) GROUP[k].addTo(map); if(!on&&map.hasLayer(GROUP[k])) map.removeLayer(GROUP[k]); }); syncLayerBoxes(); }
+  if(q.get('b') && BASE[q.get('b')]) setBase(q.get('b'));
+  const d=+q.get('d'); applyDate(isFinite(d)?Math.max(0,Math.min(MAXD,d)):0);
+  const c=(q.get('c')||'').split(',').map(Number), z=+q.get('z');
+  if(c.length===2 && c.every(isFinite) && isFinite(z)) map.setView(c,z,{animate:false}); else fitAll();
+  setTimeout(doPrint,600);
+})();
 </script>
 </body>
 </html>
