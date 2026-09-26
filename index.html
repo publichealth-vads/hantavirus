@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hantavirus Epidemiology Storytelling Map (Draft v9)</title>
+<title>Hantavirus Epidemiology Storytelling Map (Draft v11)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -731,6 +731,11 @@ header .spacer{flex:1}
 header .sub .draft{font-size:10.5px;padding:1px 6px;margin-right:6px;vertical-align:1px}
 .basesel{display:flex;align-items:center;gap:6px;color:#dfe6ea;font-size:12.5px}
 .basesel select{font:inherit;font-size:12.5px;font-weight:600;color:#fff;background:#243541;border:1px solid #4a5a66;border-radius:4px;padding:5px 8px;cursor:pointer}
+.gmlink{display:inline-flex;align-items:center;gap:5px;background:#fff;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.3);padding:5px 9px;font:600 12px var(--font);color:#1a73e8;text-decoration:none;cursor:pointer}
+.gmlink:hover{text-decoration:underline}
+.gmlink svg{width:13px;height:13px;flex:none}
+.toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:2500;background:var(--ink);color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;box-shadow:0 3px 12px rgba(0,0,0,.3);opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
 .vstamp{position:fixed;right:0;bottom:0;z-index:1500;background:rgba(23,35,45,.86);color:#fff;font-size:11.5px;padding:3px 10px;border-top-left-radius:5px;font-variant-numeric:tabular-nums}
 .leaflet-bottom.leaflet-right{bottom:20px}
 .hbtn{text-decoration:none;background:transparent;color:#dfe6ea;border:1px solid #4a5a66;border-radius:4px;padding:6px 10px;font-size:12.5px;cursor:pointer}
@@ -939,7 +944,7 @@ body.dragging iframe,body.dragging #map{pointer-events:none}
   header h1{font-size:15px}
 }
 @media print{
-  .topnav,.basesel,.hbtn,.tabs,.scrub .ctl,.search,.results{display:none!important}
+  .gmlink,.topnav,.basesel,.hbtn,.tabs,.scrub .ctl,.search,.results{display:none!important}
   aside{height:auto}
 }
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -1031,7 +1036,8 @@ body.dragging iframe,body.dragging #map{pointer-events:none}
     <div class="mfoot" id="mfoot"></div>
   </div>
 </div>
-<div class="vstamp" id="vstamp">Version 9 · Created 26 Sep 2026, 12:19 PM ET</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="vstamp" id="vstamp">Version 11 · Created 26 Sep 2026, 12:55 PM ET</div>
 <script>/* @preserve
  * Leaflet 1.9.4, a JS library for interactive maps. https://leafletjs.com
  * (c) 2010-2023 Vladimir Agafonkin, (c) 2010-2011 CloudMade
@@ -1638,6 +1644,26 @@ document.getElementById('p-resources').innerHTML =
 /* ---- tabs, print ---- */
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => selectTab(b.dataset.p));
 document.getElementById('printbtn').onclick = () => window.print();
+
+/* ---- Google Maps: open or copy a link to the selected place or the current view ---- */
+let gmSel=null;
+map.on('popupopen',ev=>{ const ll=ev.popup.getLatLng(); const h=ev.popup.getElement()?.querySelector('.pop h4'); gmSel={ll, name:(h?h.textContent:'selected place').replace(/\s+/g,' ').trim()}; });
+map.on('popupclose',()=>{ gmSel=null; });
+function gmapsURL(){
+  if(gmSel){ const {lat,lng}=gmSel.ll; return {url:`https://www.google.com/maps/search/?api=1&query=${lat.toFixed(5)},${lng.toFixed(5)}`, what:gmSel.name}; }
+  const c=map.getCenter(), z=Math.max(1,Math.min(21,Math.round(map.getZoom())));
+  return {url:`https://www.google.com/maps/@?api=1&map_action=map&center=${c.lat.toFixed(5)},${c.lng.toFixed(5)}&zoom=${z}${curBase==='imagery'?'&basemap=satellite':''}`, what:'the current map view'};
+}
+let toastT=0; function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2600); }
+function openTab(u){ const w=window.open(u,'_blank','noopener'); if(!w){ const a=document.createElement('a'); a.href=u; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); } }
+const PIN='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.6A2.6 2.6 0 1 1 12 6.4a2.6 2.6 0 0 1 0 5.2z"/></svg>';
+const GM=L.control({position:'topright'});
+GM.onAdd=()=>{ const a=L.DomUtil.create('a','gmlink'); a.href='#'; a.title='Open the selected place, or this map view, in Google Maps';
+  a.innerHTML=`${PIN}View in Google Maps`;
+  L.DomEvent.disableClickPropagation(a);
+  a.addEventListener('click',e=>{ e.preventDefault(); const g=gmapsURL(); openTab(g.url); toast(`Opening ${g.what} in Google Maps.`); });
+  return a; };
+GM.addTo(map);
 
 /* ---- resizable / collapsible side panel ---- */
 (function(){
